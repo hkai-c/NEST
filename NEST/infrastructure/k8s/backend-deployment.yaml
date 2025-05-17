@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nest-backend
+  labels:
+    app: nest-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nest-backend
+  template:
+    metadata:
+      labels:
+        app: nest-backend
+    spec:
+      containers:
+      - name: nest-backend
+        image: nest-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: postgres-password
+        - name: POSTGRES_SERVER
+          value: nest-postgres
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: nest
+        - name: MONGO_URI
+          value: mongodb://nest-mongodb:27017
+        - name: MONGO_DB
+          value: nest
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: secret-key
+        - name: RABBITMQ_HOST
+          value: nest-rabbitmq
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: rabbitmq-user
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: rabbitmq-password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        volumeMounts:
+        - name: voice-recordings
+          mountPath: /app/data/voice_recordings
+        - name: meditation-audio
+          mountPath: /app/data/meditation_audio
+      volumes:
+      - name: voice-recordings
+        persistentVolumeClaim:
+          claimName: nest-voice-recordings-pvc
+      - name: meditation-audio
+        persistentVolumeClaim:
+          claimName: nest-meditation-audio-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nest-backend
+spec:
+  selector:
+    app: nest-backend
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nest-backend-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - api.nest.example.com
+    secretName: nest-tls
+  rules:
+  - host: api.nest.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nest-backend
+            port:
+              number: 80 

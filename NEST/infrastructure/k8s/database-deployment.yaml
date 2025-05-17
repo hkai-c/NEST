@@ -1,0 +1,127 @@
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nest-postgres
+spec:
+  serviceName: nest-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nest-postgres
+  template:
+    metadata:
+      labels:
+        app: nest-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: postgres-password
+        - name: POSTGRES_DB
+          value: nest
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nest-postgres
+spec:
+  selector:
+    app: nest-postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  clusterIP: None
+---
+# MongoDB Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nest-mongodb
+spec:
+  serviceName: nest-mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nest-mongodb
+  template:
+    metadata:
+      labels:
+        app: nest-mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:4.4
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: mongo-user
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nest-secrets
+              key: mongo-password
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nest-mongodb
+spec:
+  selector:
+    app: nest-mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+  clusterIP: None 
